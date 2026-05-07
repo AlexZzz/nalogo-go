@@ -37,8 +37,11 @@ jobs:
         env:
           MIN_COVERAGE: "85.0"
         run: |
-          total_line="$(go tool cover -func=coverage.out | rg '^total:')"
-          total_pct="$(echo "$total_line" | rg -o '[0-9]+\.[0-9]+(?=%)')"
+          total_pct="$(go tool cover -func=coverage.out | awk '/^total:/{gsub("%","",$3); print $3}')"
+          if [ -z "$total_pct" ]; then
+            echo "Failed to parse coverage from coverage.out"
+            exit 1
+          fi
           echo "Total coverage: ${total_pct}%"
           {
             echo "## Coverage"
