@@ -1,0 +1,17 @@
+{
+  "incomeInfo": {
+    "approvedReceiptUuid": "test-receipt-uuid-123",
+    "name": "Test Service",
+    "operationTime": "2024-01-01T12:00:00.000Z",
+    "requestTime": "2024-01-01T12:00:00.000Z",
+    "paymentType": "CASH",
+    "partnerCode": null,
+    "totalAmount": "100.00",
+    "cancellationInfo": {
+      "operationTime": "2024-01-01T12:01:00.000Z",
+      "registerTime": "2024-01-01T12:01:00.000Z",
+      "taxPeriodId": 202401,
+      "comment": "Возврат средств"
+    }
+  }
+}

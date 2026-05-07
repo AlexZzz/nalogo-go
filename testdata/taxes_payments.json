@@ -1,0 +1,10 @@
+{
+  "content": [
+    {
+      "taxPeriodId": 202401,
+      "amount": "1234.56",
+      "paid": true,
+      "paidDate": "2024-03-20"
+    }
+  ]
+}

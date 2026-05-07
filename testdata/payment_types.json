@@ -1,0 +1,12 @@
+[
+  {
+    "id": "bank_1",
+    "name": "Сбербанк",
+    "favorite": false
+  },
+  {
+    "id": "bank_2",
+    "name": "Тинькофф",
+    "favorite": true
+  }
+]

@@ -1,0 +1,9 @@
+{
+  "content": [
+    {
+      "taxPeriodId": 202401,
+      "amount": "1234.56",
+      "status": "PENDING"
+    }
+  ]
+}

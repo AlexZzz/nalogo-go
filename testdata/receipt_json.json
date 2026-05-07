@@ -1,0 +1,21 @@
+{
+  "id": "test-receipt-uuid-123",
+  "operationTime": "2024-01-01T12:00:00.000Z",
+  "requestTime": "2024-01-01T12:00:00.000Z",
+  "totalAmount": "100.00",
+  "services": [
+    {
+      "name": "Test Service",
+      "amount": "100.00",
+      "quantity": "1"
+    }
+  ],
+  "client": {
+    "contactPhone": null,
+    "displayName": null,
+    "incomeType": "FROM_INDIVIDUAL",
+    "inn": null
+  },
+  "paymentType": "CASH",
+  "approvedReceiptUuid": "test-receipt-uuid-123"
+}

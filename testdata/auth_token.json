@@ -1,0 +1,13 @@
+{
+  "token": "sample_access_token",
+  "refreshToken": "sample_refresh_token",
+  "tokenExpireIn": "2024-12-31T23:59:59.999Z",
+  "refreshTokenExpiresIn": null,
+  "profile": {
+    "id": "1000000",
+    "inn": "123456789012",
+    "displayName": "Test User",
+    "email": "test@example.com",
+    "phone": "79000000000"
+  }
+}
