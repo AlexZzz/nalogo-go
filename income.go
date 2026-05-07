@@ -3,6 +3,8 @@ package nalogo
 import (
 	"context"
 	"net/http"
+	"strings"
+	"unicode"
 
 	"github.com/shopspring/decimal"
 )
@@ -77,6 +79,24 @@ type CancelResponse struct {
 	IncomeInfo map[string]any `json:"incomeInfo"`
 }
 
+// validateINN mirrors Python's IncomeClient.validate_inn:
+// INN must be numeric-only and either 10 (legal entity) or 12 (individual) digits.
+func validateINN(inn string) error {
+	inn = strings.TrimSpace(inn)
+	if inn == "" {
+		return nil
+	}
+	for _, r := range inn {
+		if !unicode.IsDigit(r) {
+			return newValidationError("INN must contain only numbers")
+		}
+	}
+	if len(inn) != 10 && len(inn) != 12 {
+		return newValidationError("INN length must be 10 or 12 digits")
+	}
+	return nil
+}
+
 // Income is the income-receipt API accessor.
 type Income struct{ c *Client }
 
@@ -93,13 +113,20 @@ func (a *Income) CreateMultipleItems(ctx context.Context, services []IncomeServi
 		return nil, newValidationError("services cannot be empty")
 	}
 
-	// Validate legal-entity client fields.
-	if client != nil && client.IncomeType == IncomeTypeFromLegalEntity {
-		if client.INN == nil || *client.INN == "" {
-			return nil, newValidationError("client INN cannot be empty for legal entity")
+	// Validate client fields.
+	if client != nil {
+		if client.INN != nil && *client.INN != "" {
+			if err := validateINN(*client.INN); err != nil {
+				return nil, err
+			}
 		}
-		if client.DisplayName == nil || *client.DisplayName == "" {
-			return nil, newValidationError("client DisplayName cannot be empty for legal entity")
+		if client.IncomeType == IncomeTypeFromLegalEntity {
+			if client.INN == nil || *client.INN == "" {
+				return nil, newValidationError("client INN cannot be empty for legal entity")
+			}
+			if client.DisplayName == nil || *client.DisplayName == "" {
+				return nil, newValidationError("client DisplayName cannot be empty for legal entity")
+			}
 		}
 	}
 
@@ -107,6 +134,9 @@ func (a *Income) CreateMultipleItems(ctx context.Context, services []IncomeServi
 	total := decimal.Zero
 	wire := make([]incomeItemWire, len(services))
 	for i, s := range services {
+		if strings.TrimSpace(s.Name) == "" {
+			return nil, newValidationError("service name cannot be empty")
+		}
 		if !s.Amount.IsPositive() {
 			return nil, newValidationError("amount must be greater than 0")
 		}
@@ -114,7 +144,7 @@ func (a *Income) CreateMultipleItems(ctx context.Context, services []IncomeServi
 			return nil, newValidationError("quantity must be greater than 0")
 		}
 		total = total.Add(s.Amount.Decimal.Mul(s.Quantity.Decimal))
-		wire[i] = incomeItemWire{Name: s.Name, Amount: s.Amount, Quantity: s.Quantity}
+		wire[i] = incomeItemWire{Name: strings.TrimSpace(s.Name), Amount: s.Amount, Quantity: s.Quantity}
 	}
 
 	payer := IncomeClientInfo{IncomeType: IncomeTypeFromIndividual}

@@ -737,3 +737,331 @@ func TestInvalidCancelComment_StringValidation(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, nalogo.ErrUnknown))
 }
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+
+// test_401_without_refresh_token_fails: token has no refreshToken → immediate ErrUnauthorized.
+func TestRefreshOn401_NoRefreshToken(t *testing.T) {
+	noRefresh := []byte(`{"token":"tok","refreshToken":"","profile":{"id":"1","inn":"123456789012"}}`)
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{
+		"POST /v1/income": func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+		},
+	})
+	c := newClient()
+	require.NoError(t, c.Authenticate(context.Background(), string(noRefresh)))
+
+	_, err := c.Income().Create(context.Background(), "S",
+		nalogo.MustMoneyAmount("100"), nalogo.MustMoneyAmount("1"))
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, nalogo.ErrUnauthorized))
+}
+
+// ── Income: service item validation ──────────────────────────────────────────
+
+// test_service_item_validation_empty_name
+func TestServiceItem_EmptyName_Validation(t *testing.T) {
+	tokenData := fixture(t, "auth_token.json")
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{})
+	c := newClient()
+	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
+
+	_, err := c.Income().Create(context.Background(), "",
+		nalogo.MustMoneyAmount("100"), nalogo.MustMoneyAmount("1"))
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, nalogo.ErrValidation))
+}
+
+// test_service_item_validation_negative_amount
+func TestServiceItem_NegativeAmount_Validation(t *testing.T) {
+	tokenData := fixture(t, "auth_token.json")
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{})
+	c := newClient()
+	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
+
+	_, err := c.Income().Create(context.Background(), "S",
+		nalogo.MustMoneyAmount("-50"), nalogo.MustMoneyAmount("1"))
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, nalogo.ErrValidation))
+}
+
+// test_service_item_validation_zero_quantity
+func TestServiceItem_ZeroQuantity_Validation(t *testing.T) {
+	tokenData := fixture(t, "auth_token.json")
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{})
+	c := newClient()
+	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
+
+	_, err := c.Income().Create(context.Background(), "S",
+		nalogo.MustMoneyAmount("100"), nalogo.MustMoneyAmount("0"))
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, nalogo.ErrValidation))
+}
+
+// test_service_item_serialization: amounts must be quoted decimal strings in wire JSON.
+func TestServiceItem_WireFormat(t *testing.T) {
+	tokenData := fixture(t, "auth_token.json")
+	var captured map[string]any
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{
+		"POST /v1/income": func(w http.ResponseWriter, r *http.Request) {
+			json.NewDecoder(r.Body).Decode(&captured)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(fixture(t, "income_create.json"))
+		},
+	})
+	c := newClient()
+	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
+
+	_, err := c.Income().Create(context.Background(), "Test Service",
+		nalogo.MustMoneyAmount("100.50"), nalogo.MustMoneyAmount("2"))
+	require.NoError(t, err)
+
+	services := captured["services"].([]any)
+	require.Len(t, services, 1)
+	item := services[0].(map[string]any)
+	assert.Equal(t, "Test Service", item["name"])
+	assert.Equal(t, "100.50", item["amount"])  // quoted decimal string
+	assert.Equal(t, "2.00", item["quantity"])   // quoted decimal string
+}
+
+// test_create_empty_services_validation
+func TestCreateMultipleItems_EmptyServices_Validation(t *testing.T) {
+	tokenData := fixture(t, "auth_token.json")
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{})
+	c := newClient()
+	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
+
+	_, err := c.Income().CreateMultipleItems(context.Background(),
+		[]nalogo.IncomeServiceItem{}, nalogo.AtomTimeNow(), nil)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, nalogo.ErrValidation))
+}
+
+// ── Income: client info validation ───────────────────────────────────────────
+
+// test_income_client_serialization: verify wire JSON fields for custom client.
+func TestIncomeClient_WireFormat(t *testing.T) {
+	tokenData := fixture(t, "auth_token.json")
+	var captured map[string]any
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{
+		"POST /v1/income": func(w http.ResponseWriter, r *http.Request) {
+			json.NewDecoder(r.Body).Decode(&captured)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(fixture(t, "income_create.json"))
+		},
+	})
+	c := newClient()
+	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
+
+	phone := "+79001234567"
+	name := "Custom Client"
+	inn := "123456789012"
+	client := &nalogo.IncomeClientInfo{
+		ContactPhone: &phone,
+		DisplayName:  &name,
+		IncomeType:   nalogo.IncomeTypeFromIndividual,
+		INN:          &inn,
+	}
+	_, err := c.Income().CreateMultipleItems(context.Background(),
+		[]nalogo.IncomeServiceItem{{Name: "S", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustMoneyAmount("1")}},
+		nalogo.AtomTimeNow(), client)
+	require.NoError(t, err)
+
+	cl := captured["client"].(map[string]any)
+	assert.Equal(t, "+79001234567", cl["contactPhone"])
+	assert.Equal(t, "Custom Client", cl["displayName"])
+	assert.Equal(t, "FROM_INDIVIDUAL", cl["incomeType"])
+	assert.Equal(t, "123456789012", cl["inn"])
+}
+
+// test_create_with_custom_client: custom client contactPhone/displayName in request.
+func TestCreateWithCustomClient_RequestBody(t *testing.T) {
+	tokenData := fixture(t, "auth_token.json")
+	var captured map[string]any
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{
+		"POST /v1/income": func(w http.ResponseWriter, r *http.Request) {
+			json.NewDecoder(r.Body).Decode(&captured)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(fixture(t, "income_create.json"))
+		},
+	})
+	c := newClient()
+	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
+
+	phone := "+79001234567"
+	name := "Custom Client"
+	client := &nalogo.IncomeClientInfo{
+		ContactPhone: &phone,
+		DisplayName:  &name,
+		IncomeType:   nalogo.IncomeTypeFromIndividual,
+	}
+	_, err := c.Income().CreateMultipleItems(context.Background(),
+		[]nalogo.IncomeServiceItem{{Name: "S", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustMoneyAmount("1")}},
+		nalogo.AtomTimeNow(), client)
+	require.NoError(t, err)
+
+	cl := captured["client"].(map[string]any)
+	assert.Equal(t, "+79001234567", cl["contactPhone"])
+	assert.Equal(t, "Custom Client", cl["displayName"])
+}
+
+// test_create_legal_entity_validation_success
+func TestCreateLegalEntity_Success(t *testing.T) {
+	tokenData := fixture(t, "auth_token.json")
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{
+		"POST /v1/income": jsonHandler(t, "income_create.json"),
+	})
+	c := newClient()
+	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
+
+	inn := "1234567890" // 10 digits — legal entity
+	name := "LLC Company"
+	client := &nalogo.IncomeClientInfo{
+		DisplayName: &name,
+		IncomeType:  nalogo.IncomeTypeFromLegalEntity,
+		INN:         &inn,
+	}
+	resp, err := c.Income().Create(context.Background(), "Service",
+		nalogo.MustMoneyAmount("100"), nalogo.MustMoneyAmount("1"), )
+	// Create wraps CreateMultipleItems; use CreateMultipleItems directly here
+	_ = resp
+	resp2, err := c.Income().CreateMultipleItems(context.Background(),
+		[]nalogo.IncomeServiceItem{{Name: "Service", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustMoneyAmount("1")}},
+		nalogo.AtomTimeNow(), client)
+	require.NoError(t, err)
+	assert.Equal(t, "test-receipt-uuid-123", resp2.ApprovedReceiptUUID)
+}
+
+// test_create_legal_entity_validation_missing_display_name
+func TestCreateLegalEntity_MissingDisplayName_Validation(t *testing.T) {
+	tokenData := fixture(t, "auth_token.json")
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{})
+	c := newClient()
+	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
+
+	inn := "1234567890"
+	client := &nalogo.IncomeClientInfo{
+		IncomeType: nalogo.IncomeTypeFromLegalEntity,
+		INN:        &inn,
+	}
+	_, err := c.Income().CreateMultipleItems(context.Background(),
+		[]nalogo.IncomeServiceItem{{Name: "S", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustMoneyAmount("1")}},
+		nalogo.AtomTimeNow(), client)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, nalogo.ErrValidation))
+}
+
+// ── INN format validation ─────────────────────────────────────────────────────
+
+// test_inn_validation_valid_lengths: 10 and 12 digits both accepted.
+func TestINN_ValidLengths(t *testing.T) {
+	tokenData := fixture(t, "auth_token.json")
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{
+		"POST /v1/income": jsonHandler(t, "income_create.json"),
+	})
+	c := newClient()
+	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
+
+	for _, inn := range []string{"1234567890", "123456789012"} {
+		inn := inn
+		name := "Co"
+		client := &nalogo.IncomeClientInfo{
+			DisplayName: &name,
+			IncomeType:  nalogo.IncomeTypeFromLegalEntity,
+			INN:         &inn,
+		}
+		_, err := c.Income().CreateMultipleItems(context.Background(),
+			[]nalogo.IncomeServiceItem{{Name: "S", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustMoneyAmount("1")}},
+			nalogo.AtomTimeNow(), client)
+		assert.NoError(t, err, "INN %q should be valid", inn)
+	}
+}
+
+// test_inn_validation_invalid_length: 9 digits rejected.
+func TestINN_InvalidLength_Validation(t *testing.T) {
+	tokenData := fixture(t, "auth_token.json")
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{})
+	c := newClient()
+	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
+
+	inn := "123456789" // 9 digits
+	name := "Co"
+	client := &nalogo.IncomeClientInfo{
+		DisplayName: &name,
+		IncomeType:  nalogo.IncomeTypeFromLegalEntity,
+		INN:         &inn,
+	}
+	_, err := c.Income().CreateMultipleItems(context.Background(),
+		[]nalogo.IncomeServiceItem{{Name: "S", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustMoneyAmount("1")}},
+		nalogo.AtomTimeNow(), client)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, nalogo.ErrValidation))
+}
+
+// test_inn_validation_non_numeric: non-digit characters rejected.
+func TestINN_NonNumeric_Validation(t *testing.T) {
+	tokenData := fixture(t, "auth_token.json")
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{})
+	c := newClient()
+	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
+
+	inn := "12345abcde"
+	name := "Co"
+	client := &nalogo.IncomeClientInfo{
+		DisplayName: &name,
+		IncomeType:  nalogo.IncomeTypeFromLegalEntity,
+		INN:         &inn,
+	}
+	_, err := c.Income().CreateMultipleItems(context.Background(),
+		[]nalogo.IncomeServiceItem{{Name: "S", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustMoneyAmount("1")}},
+		nalogo.AtomTimeNow(), client)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, nalogo.ErrValidation))
+}
+
+// ── Receipt ───────────────────────────────────────────────────────────────────
+
+// test_print_url_empty_uuid_validation (after auth)
+func TestPrintURL_EmptyUUID_AfterAuth(t *testing.T) {
+	tokenData := fixture(t, "auth_token.json")
+	c := nalogo.New(nalogo.WithBaseURL("https://lknpd.nalog.ru/api"))
+	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
+
+	_, err := c.Receipt().PrintURL("")
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, nalogo.ErrValidation))
+}
+
+// test_print_url_whitespace_trimming
+func TestPrintURL_WhitespaceTrimming(t *testing.T) {
+	tokenData := fixture(t, "auth_token.json")
+	c := nalogo.New(nalogo.WithBaseURL("https://lknpd.nalog.ru/api"))
+	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
+
+	url, err := c.Receipt().PrintURL("  test-receipt-uuid-123  ")
+	require.NoError(t, err)
+	assert.Equal(t, "https://lknpd.nalog.ru/api/receipt/123456789012/test-receipt-uuid-123/print", url)
+}
+
+// test_json_empty_uuid_validation (after auth)
+func TestReceiptJSON_EmptyUUID_AfterAuth(t *testing.T) {
+	tokenData := fixture(t, "auth_token.json")
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{})
+	c := newClient()
+	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
+
+	_, err := c.Receipt().JSON(context.Background(), "")
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, nalogo.ErrValidation))
+}
+
+// test_receipt_api_with_custom_base_url
+func TestReceiptPrintURL_CustomBaseURL(t *testing.T) {
+	customToken := []byte(`{"token":"tok","refreshToken":"ref","profile":{"id":"1","inn":"987654321098"}}`)
+	c := nalogo.New(nalogo.WithBaseURL("https://custom.api.example.com/api"))
+	require.NoError(t, c.Authenticate(context.Background(), string(customToken)))
+
+	url, err := c.Receipt().PrintURL("test-uuid")
+	require.NoError(t, err)
+	assert.Equal(t, "https://custom.api.example.com/api/receipt/987654321098/test-uuid/print", url)
+}
