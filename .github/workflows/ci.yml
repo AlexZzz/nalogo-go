@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test and Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Run tests with coverage
+        run: go test -coverprofile=coverage.out ./...
+
+      - name: Enforce minimum coverage
+        env:
+          MIN_COVERAGE: "85.0"
+        run: |
+          total_line="$(go tool cover -func=coverage.out | rg '^total:')"
+          total_pct="$(echo "$total_line" | rg -o '[0-9]+\.[0-9]+(?=%)')"
+          echo "Total coverage: ${total_pct}%"
+          {
+            echo "## Coverage"
+            echo
+            echo "- Total: **${total_pct}%**"
+            echo "- Required minimum: **${MIN_COVERAGE}%**"
+          } >> "$GITHUB_STEP_SUMMARY"
+          awk -v total="$total_pct" -v min="$MIN_COVERAGE" 'BEGIN { exit (total+0 >= min+0 ? 0 : 1) }'

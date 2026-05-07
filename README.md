@@ -1,5 +1,11 @@
 # nalogo-go
 
+[![Tests](https://github.com/AlexZzz/nalogo-go/actions/workflows/ci.yml/badge.svg)](https://github.com/AlexZzz/nalogo-go/actions/workflows/ci.yml)
+[![Go Version](https://img.shields.io/badge/go-1.26+-00ADD8.svg)](https://go.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Go Report Card](https://goreportcard.com/badge/github.com/AlexZzz/nalogo-go)](https://goreportcard.com/report/github.com/AlexZzz/nalogo-go)
+[![Coverage](https://img.shields.io/badge/coverage-%E2%89%A585%25-brightgreen.svg)](https://github.com/AlexZzz/nalogo-go/actions/workflows/ci.yml)
+
 Go-клиент для API ФНС «Мой налог» (lknpd.nalog.ru) — сервис для самозанятых.
 
 Порт Python-библиотеки [rusik636/nalogo](https://github.com/rusik636/nalogo) с полным покрытием функциональности.
