@@ -225,6 +225,21 @@ func TestRefreshFailure_SurfacesErrUnauthorized(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, apiErr.StatusCode)
 }
 
+// test_create_single_item_success: Create with one item returns approvedReceiptUuid.
+func TestCreateSingleItem_Success(t *testing.T) {
+	tokenData := fixture(t, "auth_token.json")
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{
+		"POST /v1/income": jsonHandler(t, "income_create.json"),
+	})
+	c := newClient()
+	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
+
+	resp, err := c.Income().Create(context.Background(), "Test Service",
+		nalogo.MustMoneyAmount("100"), nalogo.MustMoneyAmount("1"))
+	require.NoError(t, err)
+	assert.Equal(t, "test-receipt-uuid-123", resp.ApprovedReceiptUUID)
+}
+
 // AC-6: Decimal-precise totalAmount calculation (100.50*2 + 50.25*3 = 351.75, no float drift).
 func TestDecimalPreciseTotalAmount(t *testing.T) {
 	tokenData := fixture(t, "auth_token.json")
