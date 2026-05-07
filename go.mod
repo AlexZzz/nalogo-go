@@ -1,4 +1,4 @@
-module github.com/AlexZzz/nalogo
+module github.com/AlexZzz/nalogo-go
 
 go 1.26.2
 

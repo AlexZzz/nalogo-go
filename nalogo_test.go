@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/AlexZzz/nalogo"
+	"github.com/AlexZzz/nalogo-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -586,4 +586,154 @@ func TestAtomTime_JSONFormat(t *testing.T) {
 	s := string(b)
 	// Must end with Z" (Z suffix, not +00:00)
 	assert.True(t, len(s) > 2 && s[len(s)-2:] == `Z"`, "expected Z suffix, got %s", s)
+}
+
+func TestAtomTime_UnmarshalJSON(t *testing.T) {
+	var at nalogo.AtomTime
+	require.NoError(t, at.UnmarshalJSON([]byte(`"2024-01-01T12:00:00.000Z"`)))
+	assert.Equal(t, 2024, at.Year())
+
+	// Fallback: RFC3339 format
+	var at2 nalogo.AtomTime
+	require.NoError(t, at2.UnmarshalJSON([]byte(`"2024-06-15T10:30:00+03:00"`)))
+	assert.Equal(t, 2024, at2.Year())
+
+	// Invalid format
+	var at3 nalogo.AtomTime
+	assert.Error(t, at3.UnmarshalJSON([]byte(`"not-a-date"`)))
+}
+
+func TestAPIError_ErrorAndUnwrap(t *testing.T) {
+	err := &nalogo.APIError{Sentinel: nalogo.ErrUnauthorized, StatusCode: 401, Body: "oops"}
+	assert.Contains(t, err.Error(), "401")
+	assert.Contains(t, err.Error(), "oops")
+	assert.Equal(t, nalogo.ErrUnauthorized, err.Unwrap())
+}
+
+func TestSanitizeHeaders_MasksSensitive(t *testing.T) {
+	// sanitizeHeaders is tested indirectly via error logging in masking
+	// but we can test MaskedString used in headers
+	m := nalogo.MaskedString("Bearer super-secret-token")
+	assert.Equal(t, "***", m.LogValue().String())
+}
+
+func TestMemoryStore_Clear(t *testing.T) {
+	store := &nalogo.MemoryStore{}
+	ctx := context.Background()
+	td := &nalogo.TokenData{Token: "tok", Profile: nalogo.UserProfile{INN: "123"}}
+	require.NoError(t, store.Save(ctx, td))
+
+	loaded, err := store.Load(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, loaded)
+
+	require.NoError(t, store.Clear(ctx))
+	loaded, err = store.Load(ctx)
+	require.NoError(t, err)
+	assert.Nil(t, loaded)
+}
+
+func TestFileStore_Clear(t *testing.T) {
+	path := t.TempDir() + "/token.json"
+	store := nalogo.NewFileStore(path)
+	ctx := context.Background()
+
+	// Clear nonexistent file is a no-op
+	assert.NoError(t, store.Clear(ctx))
+
+	td := &nalogo.TokenData{Token: "tok"}
+	require.NoError(t, store.Save(ctx, td))
+	require.NoError(t, store.Clear(ctx))
+
+	loaded, err := store.Load(ctx)
+	require.NoError(t, err)
+	assert.Nil(t, loaded)
+}
+
+func TestWithLogger_Option(t *testing.T) {
+	import_slog_logger := nalogo.New(nalogo.WithLogger(nil))
+	// Just verify New doesn't panic with nil logger option
+	assert.NotNil(t, import_slog_logger)
+}
+
+func TestNewMoneyAmount_InvalidString(t *testing.T) {
+	_, err := nalogo.NewMoneyAmount("not-a-number")
+	assert.Error(t, err)
+}
+
+func TestInjectBearer_NoToken(t *testing.T) {
+	// Client with no auth → first API call returns ErrNotAuthenticated via injectBearer
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{
+		"GET /v1/user": func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{}`))
+		},
+	})
+	c := newClient() // no Authenticate call
+	_, err := c.User().Get(context.Background())
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, nalogo.ErrNotAuthenticated))
+}
+
+func TestCancelInvalidComment_Validation(t *testing.T) {
+	tokenData := fixture(t, "auth_token.json")
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{})
+	c := newClient()
+	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
+
+	_, err := c.Income().Cancel(context.Background(), "some-uuid", "invalid comment")
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, nalogo.ErrValidation))
+}
+
+func TestCreateAccessToken_Error(t *testing.T) {
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{
+		"POST /v1/auth/lkfl": func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte(`{"message":"bad credentials"}`))
+		},
+	})
+	c := newClient()
+	_, err := c.CreateAccessToken(context.Background(), "bad-inn", "bad-pass")
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, nalogo.ErrUnauthorized))
+}
+
+func TestPaymentTypeFavorite_NoneFound(t *testing.T) {
+	tokenData := fixture(t, "auth_token.json")
+	noFavData := []byte(`[{"id":"b1","name":"Банк","favorite":false}]`)
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{
+		"GET /v1/payment-type/table": func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(noFavData)
+		},
+	})
+	c := newClient()
+	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
+
+	fav, err := c.PaymentType().Favorite(context.Background())
+	require.NoError(t, err)
+	assert.Nil(t, fav)
+}
+
+func TestReceiptJSON_NotAuthenticated(t *testing.T) {
+	c := nalogo.New()
+	_, err := c.Receipt().JSON(context.Background(), "some-uuid")
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, nalogo.ErrNotAuthenticated))
+}
+
+func TestInvalidCancelComment_StringValidation(t *testing.T) {
+	// statusToSentinel for unknown status
+	tokenData := fixture(t, "auth_token.json")
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{
+		"GET /v1/user": func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(418) // unknown status
+		},
+	})
+	c := newClient()
+	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
+	_, err := c.User().Get(context.Background())
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, nalogo.ErrUnknown))
 }
