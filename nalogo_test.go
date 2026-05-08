@@ -145,7 +145,7 @@ func TestRefreshOn401_SingleRetry(t *testing.T) {
 	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
 
 	resp, err := c.Income().Create(context.Background(), "Service",
-		nalogo.MustMoneyAmount("100"), nalogo.MustMoneyAmount("1"))
+		nalogo.MustMoneyAmount("100"), nalogo.MustQuantity("1"))
 	require.NoError(t, err)
 	assert.Equal(t, "test-receipt-uuid-123", resp.ApprovedReceiptUUID)
 	assert.Equal(t, 2, callCount)
@@ -189,7 +189,7 @@ func TestRefreshSingleFlight_Concurrency(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			_, errs[i] = c.Income().Create(context.Background(), "Service",
-				nalogo.MustMoneyAmount("100"), nalogo.MustMoneyAmount("1"))
+				nalogo.MustMoneyAmount("100"), nalogo.MustQuantity("1"))
 		}()
 	}
 	wg.Wait()
@@ -217,7 +217,7 @@ func TestRefreshFailure_SurfacesErrUnauthorized(t *testing.T) {
 	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
 
 	_, err := c.Income().Create(context.Background(), "Service",
-		nalogo.MustMoneyAmount("100"), nalogo.MustMoneyAmount("1"))
+		nalogo.MustMoneyAmount("100"), nalogo.MustQuantity("1"))
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, nalogo.ErrUnauthorized))
 	var apiErr *nalogo.APIError
@@ -235,7 +235,7 @@ func TestCreateSingleItem_Success(t *testing.T) {
 	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
 
 	resp, err := c.Income().Create(context.Background(), "Test Service",
-		nalogo.MustMoneyAmount("100"), nalogo.MustMoneyAmount("1"))
+		nalogo.MustMoneyAmount("100"), nalogo.MustQuantity("1"))
 	require.NoError(t, err)
 	assert.Equal(t, "test-receipt-uuid-123", resp.ApprovedReceiptUUID)
 }
@@ -257,8 +257,8 @@ func TestDecimalPreciseTotalAmount(t *testing.T) {
 	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
 
 	services := []nalogo.IncomeServiceItem{
-		{Name: "S1", Amount: nalogo.MustMoneyAmount("100.50"), Quantity: nalogo.MustMoneyAmount("2")},
-		{Name: "S2", Amount: nalogo.MustMoneyAmount("50.25"), Quantity: nalogo.MustMoneyAmount("3")},
+		{Name: "S1", Amount: nalogo.MustMoneyAmount("100.50"), Quantity: nalogo.MustQuantity("2")},
+		{Name: "S2", Amount: nalogo.MustMoneyAmount("50.25"), Quantity: nalogo.MustQuantity("3")},
 	}
 	_, err := c.Income().CreateMultipleItems(context.Background(), services, nalogo.AtomTimeNow(), nil)
 	require.NoError(t, err)
@@ -295,7 +295,7 @@ func TestLegalEntityMissingINN_Validation(t *testing.T) {
 	displayName := "LLC Test"
 	client := &nalogo.IncomeClientInfo{IncomeType: nalogo.IncomeTypeFromLegalEntity, DisplayName: &displayName}
 	_, err := c.Income().CreateMultipleItems(context.Background(),
-		[]nalogo.IncomeServiceItem{{Name: "S", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustMoneyAmount("1")}},
+		[]nalogo.IncomeServiceItem{{Name: "S", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustQuantity("1")}},
 		nalogo.AtomTimeNow(), client)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, nalogo.ErrValidation))
@@ -309,7 +309,7 @@ func TestNonPositiveAmount_Validation(t *testing.T) {
 	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
 
 	_, err := c.Income().Create(context.Background(), "Service",
-		nalogo.MustMoneyAmount("0"), nalogo.MustMoneyAmount("1"))
+		nalogo.MustMoneyAmount("0"), nalogo.MustQuantity("1"))
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, nalogo.ErrValidation))
 }
@@ -767,7 +767,7 @@ func TestRefreshOn401_NoRefreshToken(t *testing.T) {
 	require.NoError(t, c.Authenticate(context.Background(), string(noRefresh)))
 
 	_, err := c.Income().Create(context.Background(), "S",
-		nalogo.MustMoneyAmount("100"), nalogo.MustMoneyAmount("1"))
+		nalogo.MustMoneyAmount("100"), nalogo.MustQuantity("1"))
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, nalogo.ErrUnauthorized))
 }
@@ -782,7 +782,7 @@ func TestServiceItem_EmptyName_Validation(t *testing.T) {
 	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
 
 	_, err := c.Income().Create(context.Background(), "",
-		nalogo.MustMoneyAmount("100"), nalogo.MustMoneyAmount("1"))
+		nalogo.MustMoneyAmount("100"), nalogo.MustQuantity("1"))
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, nalogo.ErrValidation))
 }
@@ -795,7 +795,7 @@ func TestServiceItem_NegativeAmount_Validation(t *testing.T) {
 	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
 
 	_, err := c.Income().Create(context.Background(), "S",
-		nalogo.MustMoneyAmount("-50"), nalogo.MustMoneyAmount("1"))
+		nalogo.MustMoneyAmount("-50"), nalogo.MustQuantity("1"))
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, nalogo.ErrValidation))
 }
@@ -808,7 +808,7 @@ func TestServiceItem_ZeroQuantity_Validation(t *testing.T) {
 	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
 
 	_, err := c.Income().Create(context.Background(), "S",
-		nalogo.MustMoneyAmount("100"), nalogo.MustMoneyAmount("0"))
+		nalogo.MustMoneyAmount("100"), nalogo.MustQuantity("0"))
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, nalogo.ErrValidation))
 }
@@ -828,7 +828,7 @@ func TestServiceItem_WireFormat(t *testing.T) {
 	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
 
 	_, err := c.Income().Create(context.Background(), "Test Service",
-		nalogo.MustMoneyAmount("100.50"), nalogo.MustMoneyAmount("2"))
+		nalogo.MustMoneyAmount("100.50"), nalogo.MustQuantity("2"))
 	require.NoError(t, err)
 
 	services := captured["services"].([]any)
@@ -878,7 +878,7 @@ func TestIncomeClient_WireFormat(t *testing.T) {
 		INN:          &inn,
 	}
 	_, err := c.Income().CreateMultipleItems(context.Background(),
-		[]nalogo.IncomeServiceItem{{Name: "S", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustMoneyAmount("1")}},
+		[]nalogo.IncomeServiceItem{{Name: "S", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustQuantity("1")}},
 		nalogo.AtomTimeNow(), client)
 	require.NoError(t, err)
 
@@ -911,7 +911,7 @@ func TestCreateWithCustomClient_RequestBody(t *testing.T) {
 		IncomeType:   nalogo.IncomeTypeFromIndividual,
 	}
 	_, err := c.Income().CreateMultipleItems(context.Background(),
-		[]nalogo.IncomeServiceItem{{Name: "S", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustMoneyAmount("1")}},
+		[]nalogo.IncomeServiceItem{{Name: "S", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustQuantity("1")}},
 		nalogo.AtomTimeNow(), client)
 	require.NoError(t, err)
 
@@ -937,11 +937,11 @@ func TestCreateLegalEntity_Success(t *testing.T) {
 		INN:         &inn,
 	}
 	resp, err := c.Income().Create(context.Background(), "Service",
-		nalogo.MustMoneyAmount("100"), nalogo.MustMoneyAmount("1"), )
+		nalogo.MustMoneyAmount("100"), nalogo.MustQuantity("1"), )
 	// Create wraps CreateMultipleItems; use CreateMultipleItems directly here
 	_ = resp
 	resp2, err := c.Income().CreateMultipleItems(context.Background(),
-		[]nalogo.IncomeServiceItem{{Name: "Service", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustMoneyAmount("1")}},
+		[]nalogo.IncomeServiceItem{{Name: "Service", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustQuantity("1")}},
 		nalogo.AtomTimeNow(), client)
 	require.NoError(t, err)
 	assert.Equal(t, "test-receipt-uuid-123", resp2.ApprovedReceiptUUID)
@@ -960,7 +960,7 @@ func TestCreateLegalEntity_MissingDisplayName_Validation(t *testing.T) {
 		INN:        &inn,
 	}
 	_, err := c.Income().CreateMultipleItems(context.Background(),
-		[]nalogo.IncomeServiceItem{{Name: "S", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustMoneyAmount("1")}},
+		[]nalogo.IncomeServiceItem{{Name: "S", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustQuantity("1")}},
 		nalogo.AtomTimeNow(), client)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, nalogo.ErrValidation))
@@ -986,7 +986,7 @@ func TestINN_ValidLengths(t *testing.T) {
 			INN:         &inn,
 		}
 		_, err := c.Income().CreateMultipleItems(context.Background(),
-			[]nalogo.IncomeServiceItem{{Name: "S", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustMoneyAmount("1")}},
+			[]nalogo.IncomeServiceItem{{Name: "S", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustQuantity("1")}},
 			nalogo.AtomTimeNow(), client)
 		assert.NoError(t, err, "INN %q should be valid", inn)
 	}
@@ -1007,7 +1007,7 @@ func TestINN_InvalidLength_Validation(t *testing.T) {
 		INN:         &inn,
 	}
 	_, err := c.Income().CreateMultipleItems(context.Background(),
-		[]nalogo.IncomeServiceItem{{Name: "S", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustMoneyAmount("1")}},
+		[]nalogo.IncomeServiceItem{{Name: "S", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustQuantity("1")}},
 		nalogo.AtomTimeNow(), client)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, nalogo.ErrValidation))
@@ -1028,7 +1028,7 @@ func TestINN_NonNumeric_Validation(t *testing.T) {
 		INN:         &inn,
 	}
 	_, err := c.Income().CreateMultipleItems(context.Background(),
-		[]nalogo.IncomeServiceItem{{Name: "S", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustMoneyAmount("1")}},
+		[]nalogo.IncomeServiceItem{{Name: "S", Amount: nalogo.MustMoneyAmount("100"), Quantity: nalogo.MustQuantity("1")}},
 		nalogo.AtomTimeNow(), client)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, nalogo.ErrValidation))

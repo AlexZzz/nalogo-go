@@ -30,7 +30,7 @@ const (
 type IncomeServiceItem struct {
 	Name     string      `json:"name"`
 	Amount   MoneyAmount `json:"amount"`
-	Quantity MoneyAmount `json:"quantity"`
+	Quantity Quantity    `json:"quantity"`
 }
 
 // IncomeClientInfo carries payer information for an income receipt.
@@ -57,7 +57,7 @@ type incomeRequest struct {
 type incomeItemWire struct {
 	Name     string      `json:"name"`
 	Amount   MoneyAmount `json:"amount"`
-	Quantity MoneyAmount `json:"quantity"`
+	Quantity Quantity    `json:"quantity"`
 }
 
 // IncomeResponse is returned by Create and CreateMultipleItems.
@@ -101,7 +101,7 @@ func validateINN(inn string) error {
 type Income struct{ c *Client }
 
 // Create issues a single-item income receipt.
-func (a *Income) Create(ctx context.Context, name string, amount, quantity MoneyAmount) (*IncomeResponse, error) {
+func (a *Income) Create(ctx context.Context, name string, amount MoneyAmount, quantity Quantity) (*IncomeResponse, error) {
 	return a.CreateMultipleItems(ctx, []IncomeServiceItem{{Name: name, Amount: amount, Quantity: quantity}}, AtomTimeNow(), nil)
 }
 

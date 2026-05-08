@@ -53,6 +53,51 @@ func MustMoneyAmount(s string) MoneyAmount {
 	return m
 }
 
+// Quantity wraps decimal.Decimal and represents a service unit count in an income receipt.
+// It serializes identically to MoneyAmount (JSON quoted string, 2 decimal places)
+// but is a distinct type to prevent accidental interchange with monetary amounts.
+type Quantity struct {
+	decimal.Decimal
+}
+
+func (q Quantity) MarshalJSON() ([]byte, error) {
+	s := q.Decimal.StringFixed(2)
+	b := make([]byte, 0, len(s)+2)
+	b = append(b, '"')
+	b = append(b, s...)
+	b = append(b, '"')
+	return b, nil
+}
+
+func (q *Quantity) UnmarshalJSON(data []byte) error {
+	s := strings.Trim(string(data), `"`)
+	d, err := decimal.NewFromString(s)
+	if err != nil {
+		return err
+	}
+	q.Decimal = d
+	return nil
+}
+
+// NewQuantity constructs a Quantity from a decimal string (e.g. "1", "2.5").
+func NewQuantity(s string) (Quantity, error) {
+	d, err := decimal.NewFromString(s)
+	if err != nil {
+		return Quantity{}, err
+	}
+	return Quantity{d}, nil
+}
+
+// MustQuantity constructs a Quantity from a decimal string and panics on error.
+// For use in tests and compile-time constants only.
+func MustQuantity(s string) Quantity {
+	q, err := NewQuantity(s)
+	if err != nil {
+		panic("nalogo: invalid Quantity: " + s)
+	}
+	return q
+}
+
 // atomTimeLayout is the datetime format expected by the FNS API.
 // Must use literal "Z" suffix, not "+00:00" (which time.RFC3339 would emit).
 const atomTimeLayout = "2006-01-02T15:04:05.000Z"
