@@ -17,10 +17,11 @@ func (r *Receipt) PrintURL(receiptUUID string) (string, error) {
 	if receiptUUID == "" {
 		return "", newValidationError("receiptUUID cannot be empty")
 	}
-	if r.c.inn == "" {
+	inn := r.c.INN()
+	if inn == "" {
 		return "", &APIError{Sentinel: ErrNotAuthenticated, StatusCode: 0, Body: "call CreateAccessToken or Authenticate first"}
 	}
-	return r.c.urlReceipt(fmt.Sprintf("receipt/%s/%s/print", r.c.inn, receiptUUID)), nil
+	return r.c.urlReceipt(fmt.Sprintf("receipt/%s/%s/print", inn, receiptUUID)), nil
 }
 
 // JSON retrieves the full JSON data for a receipt.
@@ -29,12 +30,13 @@ func (r *Receipt) JSON(ctx context.Context, receiptUUID string) (map[string]any,
 	if receiptUUID == "" {
 		return nil, newValidationError("receiptUUID cannot be empty")
 	}
-	if r.c.inn == "" {
+	inn := r.c.INN()
+	if inn == "" {
 		return nil, &APIError{Sentinel: ErrNotAuthenticated, StatusCode: 0, Body: "call CreateAccessToken or Authenticate first"}
 	}
 
 	var result map[string]any
-	url := r.c.urlReceipt(fmt.Sprintf("receipt/%s/%s/json", r.c.inn, receiptUUID))
+	url := r.c.urlReceipt(fmt.Sprintf("receipt/%s/%s/json", inn, receiptUUID))
 	if err := r.c.do(ctx, r.c.apiClient, http.MethodGet, url, nil, &result); err != nil {
 		return nil, err
 	}

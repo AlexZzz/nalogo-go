@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -15,7 +16,8 @@ type Client struct {
 	cfg        *config
 	apiClient  *http.Client // goes through authTransport (401 refresh)
 	authClient *http.Client // plain — used for auth endpoints to avoid refresh loops
-	inn        string       // populated after successful authentication
+	innMu      sync.RWMutex
+	inn        string // populated after successful authentication
 }
 
 // New constructs a Client with the provided options.
@@ -117,7 +119,17 @@ func (c *Client) url2(path string) string { return c.cfg.baseURL + "/v2/" + path
 func (c *Client) urlReceipt(path string) string { return c.cfg.baseURL + "/" + path }
 
 // INN returns the INN of the authenticated user (empty before authentication).
-func (c *Client) INN() string { return c.inn }
+func (c *Client) INN() string {
+	c.innMu.RLock()
+	defer c.innMu.RUnlock()
+	return c.inn
+}
+
+func (c *Client) setINN(inn string) {
+	c.innMu.Lock()
+	c.inn = inn
+	c.innMu.Unlock()
+}
 
 // ensure the time package is used (via options.go — shared package, noop import guard).
 var _ = time.Second

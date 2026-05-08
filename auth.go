@@ -58,7 +58,7 @@ func (c *Client) CreateAccessToken(ctx context.Context, inn, password string) (s
 	if err := c.cfg.store.Save(ctx, &td); err != nil {
 		return "", err
 	}
-	c.inn = td.Profile.INN
+	c.setINN(td.Profile.INN)
 
 	return tokenJSON, nil
 }
@@ -101,7 +101,7 @@ func (c *Client) CreateAccessTokenByPhone(ctx context.Context, phone, challengeT
 	if err := c.cfg.store.Save(ctx, &td); err != nil {
 		return "", err
 	}
-	c.inn = td.Profile.INN
+	c.setINN(td.Profile.INN)
 
 	return tokenJSON, nil
 }
@@ -116,6 +116,6 @@ func (c *Client) Authenticate(ctx context.Context, tokenJSON string) error {
 	if err := c.cfg.store.Save(ctx, &td); err != nil {
 		return err
 	}
-	c.inn = td.Profile.INN
+	c.setINN(td.Profile.INN)
 	return nil
 }

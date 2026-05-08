@@ -335,6 +335,26 @@ func TestCancelRussianWireValues(t *testing.T) {
 	assert.Equal(t, "Возврат средств", capturedBody["comment"])
 }
 
+func TestCancel_WhitespaceTrimmedUUID(t *testing.T) {
+	tokenData := fixture(t, "auth_token.json")
+	var capturedBody map[string]any
+
+	_, newClient := newTestServer(t, map[string]http.HandlerFunc{
+		"POST /v1/cancel": func(w http.ResponseWriter, r *http.Request) {
+			json.NewDecoder(r.Body).Decode(&capturedBody)
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(fixture(t, "income_cancel.json"))
+		},
+	})
+
+	c := newClient()
+	require.NoError(t, c.Authenticate(context.Background(), string(tokenData)))
+
+	_, err := c.Income().Cancel(context.Background(), "  test-uuid  ", nalogo.CancelCommentRefund)
+	require.NoError(t, err)
+	assert.Equal(t, "test-uuid", capturedBody["receiptUuid"])
+}
+
 // AC-11: PrintURL is pure — no HTTP call, returns correct URL.
 func TestPrintURL_Pure(t *testing.T) {
 	tokenData := fixture(t, "auth_token.json")

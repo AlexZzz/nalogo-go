@@ -172,6 +172,7 @@ func (a *Income) CreateMultipleItems(ctx context.Context, services []IncomeServi
 // Cancel annuls an income receipt.
 // comment must be one of CancelCommentCancel or CancelCommentRefund.
 func (a *Income) Cancel(ctx context.Context, receiptUUID string, comment CancelComment) (*CancelResponse, error) {
+	receiptUUID = strings.TrimSpace(receiptUUID)
 	if receiptUUID == "" {
 		return nil, newValidationError("receiptUUID cannot be empty")
 	}
