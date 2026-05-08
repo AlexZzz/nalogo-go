@@ -43,7 +43,7 @@ client := nalogo.New(
 _, err := client.CreateAccessToken(ctx, "123456789012", "password")
 
 // Зарегистрировать доход
-resp, err := client.Income().Create(ctx, "Консультация", nalogo.MustMoneyAmount("5000"), nalogo.MustMoneyAmount("1"))
+resp, err := client.Income().Create(ctx, "Консультация", nalogo.MustMoneyAmount("5000"), nalogo.MustQuantity("1"))
 fmt.Println(resp.ApprovedReceiptUUID)
 
 // Аннулировать чек
@@ -80,8 +80,8 @@ err := client.Authenticate(ctx, savedTokenJSON)
 ```go
 resp, err := client.Income().CreateMultipleItems(ctx,
     []nalogo.IncomeServiceItem{
-        {Name: "Разработка", Amount: nalogo.MustMoneyAmount("10000"), Quantity: nalogo.MustMoneyAmount("1")},
-        {Name: "Консультация", Amount: nalogo.MustMoneyAmount("2000"), Quantity: nalogo.MustMoneyAmount("2")},
+        {Name: "Разработка", Amount: nalogo.MustMoneyAmount("10000"), Quantity: nalogo.MustQuantity("1")},
+        {Name: "Консультация", Amount: nalogo.MustMoneyAmount("2000"), Quantity: nalogo.MustQuantity("2")},
     },
     nalogo.AtomTimeNow(),
     nil, // nil = физическое лицо
@@ -130,8 +130,10 @@ type TokenStore interface {
 | `WithTimeout(d)` | 10s | Таймаут HTTP-запросов |
 | `WithDeviceID(id)` | случайный UUID-21 | Идентификатор устройства |
 | `WithTokenStore(s)` | `MemoryStore` | Хранилище токена |
-| `WithHTTPClient(c)` | `http.DefaultTransport` | HTTP-транспорт (для тестов/прокси) |
+| `WithHTTPClient(c)` | `nil` | Использовать `c.Transport` как базовый `RoundTripper` (для тестов/прокси) |
 | `WithLogger(l)` | `slog.Default()` | Логгер |
+
+Примечание: `WithHTTPClient` использует только `Transport` переданного клиента; таймауты и auth-refresh управляются опциями `WithTimeout` и встроенным `authTransport`.
 
 ## Обработка ошибок
 

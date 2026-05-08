@@ -18,7 +18,7 @@ type config struct {
 	timeout    time.Duration
 	deviceID   string
 	store      TokenStore
-	httpClient *http.Client // if set, bypasses authTransport construction
+	httpClient *http.Client // optional source of base Transport for authTransport wrapping
 	logger     *slog.Logger
 }
 
@@ -55,8 +55,9 @@ func WithTokenStore(s TokenStore) Option {
 	return func(c *config) { c.store = s }
 }
 
-// WithHTTPClient bypasses internal transport construction and uses the
-// provided client for all API requests. Intended for testing.
+// WithHTTPClient provides a custom base Transport for internal clients.
+// If cl and cl.Transport are non-nil, the transport is used as the base for
+// authTransport; auth refresh behavior remains enabled.
 func WithHTTPClient(cl *http.Client) Option {
 	return func(c *config) { c.httpClient = cl }
 }
